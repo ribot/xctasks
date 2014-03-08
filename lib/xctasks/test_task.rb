@@ -8,6 +8,10 @@ module XCTasks
     def initialize
       @namespaces = {}
       @success = true
+      
+      at_exit do
+        exit(-1) if failure?
+      end
     end
     
     def add_result(namespace, ios_version, success)
