@@ -52,23 +52,54 @@ module XCTasks
   
   class TestTask < Rake::TaskLib
     class Destination
+      # Common Keys
       attr_accessor :platform, :name
       
-      def initialize
-        @platform = 'iOS Simulator'
-        @name = 'iPhone Retina (4-inch)'
+      # OS X attributes
+      attr_accessor :arch
+      
+      # iOS keys
+      attr_accessor :id
+      
+      # iOS Simulator keys
+      attr_accessor :os
+      
+      def initialize(options = {})
+        options.each { |k,v| self[k] = v }
       end
       
-      def to_arg(os_version)
-        "platform='#{platform}',OS=#{os_version},name='#{name}'"
+      def platform=(platform)
+        valid_platforms = {osx: 'OS X', ios: 'iOS', iossimulator: 'iOS Simulator'}
+        raise ArgumentError, "Platform must be one of :osx, :ios, or :iossimulator" if platform.kind_of?(Symbol) && !valid_platforms.keys.include?(platform)
+        raise ArgumentError, "Platform must be one of 'OS X', 'iOS', or 'iOS Simulator'" if platform.kind_of?(String) && !valid_platforms.values.include?(platform)        
+        @platform = platform.kind_of?(Symbol) ? valid_platforms[platform] : platform
+      end
+      
+      def [](key)
+        send(key)
+      end
+      
+      def []=(key, value)
+        send("#{key}=", value)
+      end            
+      
+      def to_s
+        keys = [:platform, :name, :arch, :id, :os].reject { |k| self[k].nil? }
+        keys.map { |k| "#{key_name(k)}='#{self[k]}'" }.join(',')
+      end
+      
+      private
+      def key_name(attr)
+        attr == :os ? 'OS' : attr.to_s
       end
     end
     
     class ConfigurationError < RuntimeError; end    
     class Configuration
       SETTINGS = [:workspace, :schemes_dir, :sdk, :runner, :xctool_path, 
-                  :xcodebuild_path, :settings, :destination, :actions,
+                  :xcodebuild_path, :settings, :destinations, :actions,
                   :scheme, :ios_versions]
+      HELPERS = [:destination, :xctool?, :xcpretty?, :xcodebuild?]
       
       # Configures delegations to pass through configuration accessor when extended
       module Delegations
@@ -76,9 +107,10 @@ module XCTasks
           base.extend Forwardable
           accessors = SETTINGS.map { |attr| [attr, "#{attr}=".to_sym] }.flatten
           base.def_delegators :@config, *accessors
+          base.def_delegators :@config, *HELPERS
         end        
       end
-      attr_accessor *SETTINGS
+      attr_accessor(*SETTINGS)
       
       def initialize
         @sdk = :iphonesimulator
@@ -88,7 +120,7 @@ module XCTasks
         @runner = :xcodebuild
         @settings = {}
         @platform = 'iOS Simulator'
-        @destination = Destination.new
+        @destinations = []
         @actions = %w{clean build test}
       end
       
@@ -102,13 +134,41 @@ module XCTasks
         @sdk = sdk.to_sym
       end
       
-      def destination
-        yield @destination if block_given?
-        @destination
+      def destination(specifier = {})
+        if specifier.kind_of?(String)
+          raise ArgumentError, "Cannot configure a destination via a block when a complete String specifier is provided" if block_given?
+          @destinations << specifier
+        elsif specifier.kind_of?(Hash)
+          destination = Destination.new(specifier)
+          yield destination if block_given?
+          @destinations << destination
+        else
+          raise ArgumentError, "Cannot configure a destination with a #{specifier}"
+        end
       end
       
       def validate!
         raise ConfigurationError, "Cannot specify iOS versions with an SDK of :macosx" if sdk == :macosx && ios_versions
+      end
+      
+      def xctool?
+        runner == :xctool
+      end
+
+      def xcodebuild?
+        runner == :xcodebuild
+      end
+    
+      def xcpretty?
+        runner == :xcpretty
+      end
+      
+      # Deep copy any nested structures
+      def dup
+        copy = super
+        copy.settings = settings.dup
+        copy.destinations = destinations.dup
+        return copy
       end
     end
     
@@ -119,7 +179,7 @@ module XCTasks
       attr_reader :name, :config
       
       def initialize(name_options, config)
-        @config = config.dup
+        @config = config.dup        
         self.name = name_options.kind_of?(Hash) ? name_options.keys.first : name_options.to_s
         self.scheme = name_options.values.first if name_options.kind_of?(Hash)        
       end
@@ -161,31 +221,36 @@ module XCTasks
         ios_version = options[:ios_version]
         XCTasks::Command.run(%q{killall "iPhone Simulator"}, false) if sdk == :iphonesimulator
       
-        settings_arg = " " << settings.map { |k,v| "#{k}=#{v}"}.join(' ')
-        destination_arg = " -destination " << destination.to_arg(ios_version) if destination && ios_version
-        actions_arg = actions.join(' ')
         success = if xctool?
           actions_arg << " -freshSimulator" if ios_version
-          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg}".strip)
+          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}".strip)
         elsif xcodebuild?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg}".strip)
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}".strip)
         elsif xcpretty?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg} | xcpretty -c ; exit ${PIPESTATUS[0]}".strip)
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg} | xcpretty -c ; exit ${PIPESTATUS[0]}".strip)
         end
         
         XCTasks::TestReport.instance.add_result(self, options, success)
       end
-    
-      def xctool?
-        runner == :xctool
+      
+      def settings_arg
+        if settings.any?
+          " " << settings.map { |k,v| "#{k}=#{v}"}.join(' ')
+        else
+          nil
+        end
       end
-
-      def xcodebuild?
-        runner == :xcodebuild
+      
+      def actions_arg
+        " " << actions.join(' ')
       end
-    
-      def xcpretty?
-        runner == :xcpretty
+      
+      def destination_arg
+        if destinations.any?
+          " " << destinations.map { |d| "-destination #{d}" }.join(' ')
+        else
+          nil
+        end
       end
     end
     

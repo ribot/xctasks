@@ -56,10 +56,10 @@ describe XCTasks::TestTask do
         
         it "executes the appropriate commands" do
           subject.invoke
-          @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
-                               "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
-                               "killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test  | xcpretty -c ; exit ${PIPESTATUS[0]}"]
+          @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "killall \"iPhone Simulator\"", 
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test | xcpretty -c ; exit ${PIPESTATUS[0]}"]
         end
       end
       
@@ -71,7 +71,7 @@ describe XCTasks::TestTask do
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes", 
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes", 
                                "killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test  | xcpretty -c ; exit ${PIPESTATUS[0]}"]
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test | xcpretty -c ; exit ${PIPESTATUS[0]}"]
         end
       end
     end
@@ -87,9 +87,9 @@ describe XCTasks::TestTask do
           s.ios_versions = %w{7.0 7.1}
         end
             
-        t.subtask :functional do |t|
-          t.runner = :xcodebuild
-          t.scheme = 'Functional Tests'
+        t.subtask :functional do |s|
+          s.runner = :xcodebuild
+          s.scheme = 'Functional Tests'
         end
       end
     end
@@ -112,10 +112,12 @@ describe XCTasks::TestTask do
         
         it "executes the appropriate commands" do
           subject.invoke
-          @commands.should == ["killall \"iPhone Simulator\"",
-                               "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.0 clean build test -freshSimulator -destination platform='iOS Simulator',OS=7.0,name='iPhone Retina (4-inch)'", 
-                               "killall \"iPhone Simulator\"",
-                               "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.1 clean build test -freshSimulator -destination platform='iOS Simulator',OS=7.1,name='iPhone Retina (4-inch)'"]
+          @commands.should == [
+            "killall \"iPhone Simulator\"", 
+            "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.0 clean build test", 
+            "killall \"iPhone Simulator\"", 
+            "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.1 clean build test"
+          ]
         end
       end
       
@@ -124,8 +126,10 @@ describe XCTasks::TestTask do
         
         it "executes the appropriate commands" do
           subject.invoke
-          @commands.should == ["killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test"]
+          @commands.should == [
+            "killall \"iPhone Simulator\"",
+            "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test"
+          ]
         end
       end
     end
@@ -139,16 +143,43 @@ describe XCTasks::TestTask do
     
         t.subtask(unit: 'Unit Tests') do |s|
           s.ios_versions = %w{7.0 7.1}
-          s.destination = nil
         end
             
-        t.subtask :functional do |t|
-          t.runner = :xcodebuild
-          t.scheme = 'Functional Tests'
-          t.destination do |dst|
-            # TODO: Fill this in
+        t.subtask :functional do |s|
+          s.runner = :xcodebuild
+          s.scheme = 'Functional Tests'
+          s.destination do |d|
+            d.platform = :iossimulator
+            d.name = 'iPad'
+            d.os = :latest
           end
+          s.destination('platform=iOS Simulator,OS=7.1,name=iPhone Retina (4-inch)')
+          s.destination platform: :ios, id: '437750527b43cff55a46f42ae86dbf870c7591b1'
         end
+      end
+    end
+    
+    describe 'spec:unit' do
+      subject { Rake.application['spec:unit'] }
+      
+      it "executes the appropriate commands" do
+        subject.invoke
+        @commands.should == [
+          "killall \"iPhone Simulator\"", 
+          "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.0 clean build test", 
+          "killall \"iPhone Simulator\"", 
+          "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.1 clean build test"
+        ]
+      end
+    end
+    
+    describe 'spec:functional' do
+      subject { Rake.application['spec:functional'] }
+      
+      it "executes the appropriate commands" do
+        subject.invoke
+        @commands.should == ["killall \"iPhone Simulator\"", 
+                             "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS Simulator',name='iPad',OS='latest' -destination platform=iOS Simulator,OS=7.1,name=iPhone Retina (4-inch) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test"]
       end
     end
   end
@@ -214,5 +245,46 @@ describe XCTasks::TestTask do
         end.to raise_error(XCTasks::TestTask::ConfigurationError, "Cannot specify iOS versions with an SDK of :macosx")
       end
     end
+  end
+  
+  describe XCTasks::TestTask::Destination do
+    let(:destination) { XCTasks::TestTask::Destination.new }
+    
+    describe '#platform=' do
+      it "allows assignment of :osx" do
+        destination.platform = :osx
+        expect(destination.platform).to eq('OS X')
+      end
+      
+      it "allows assignment of 'OS X'" do
+        destination.platform = 'OS X'
+        expect(destination.platform).to eq('OS X')
+      end
+      
+      it "allows assignment of :ios" do
+        destination.platform = :ios
+        expect(destination.platform).to eq('iOS')
+      end
+      
+      it "allows assignment of 'iOS'" do
+        destination.platform = 'iOS'
+        expect(destination.platform).to eq('iOS')
+      end
+      
+      it "allows assignment of :iossimulator" do
+        destination.platform = :iossimulator
+        expect(destination.platform).to eq('iOS Simulator')
+      end
+      
+      it "allows assignment of 'iOS Simulator'" do
+        destination.platform = 'iOS Simulator'
+        expect(destination.platform).to eq('iOS Simulator')
+      end
+      
+      it "disallows other values" do
+        expect { destination.platform = 'sdadsa' }.to raise_error(ArgumentError)
+      end
+    end
+    
   end
 end
