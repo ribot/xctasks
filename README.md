@@ -17,11 +17,14 @@ XCTasks provides an interface for executing Xcode tests in a few ways using a un
 ```ruby
 require 'xctasks/test_task'
 XCTasks::TestTask.new(test: 'server:autostart') do |t|
-  t.workspace = 'LayerKit.xcworkspace'
-  t.ios_versions = %w{6.0 7.0}
-  t.schemes = { unit: 'LayerKit Tests' }
+  t.workspace = 'LayerKit.xcworkspace'  
   t.schemes_dir = 'Tests/Schemes' # Location where you store your shared schemes, will copy into workspace
   t.runner = :xctool # or :xcodebuild/:xcpretty
+  
+  t.subtask(unit: 'LayerKit Tests') do |s|
+    s.ios_versions = %w{7.0 7.1}
+  end
+  t.schemes = { unit: 'LayerKit Tests' }    
 end
 ```
 
@@ -35,6 +38,59 @@ rake test           # Run the unit tests
 rake test:unit      # Run unit tests against iOS Simulator 6.0, 7.0
 rake test:unit:6.0  # Run unit tests against iOS Simulator 6.0
 rake test:unit:7.0  # Run unit tests against iOS Simulator 7.0
+```
+
+#### Kiwi on iOS and OS X Example
+
+The following example is taken from [TransitionKit](http://github.com/blakewatters/TransitionKit) and executes a
+[Kiwi](https://github.com/allending/Kiwi) test suite on OS X and iOS.
+
+```ruby
+require 'xctasks/test_task'
+
+XCTasks::TestTask.new(:spec) do |t|
+  t.workspace = 'TransitionKit.xcworkspace'
+  t.schemes_dir = 'Specs/Schemes'
+  t.runner = :xcpretty
+  t.actions = %w{clean test}
+  
+  t.subtask(ios: 'iOS Specs') do |s|
+    s.sdk = :iphonesimulator
+  end
+  
+  t.subtask(osx: 'OS X Specs') do |s|
+    s.sdk = :macosx
+  end
+end
+```
+
+#### Running Tests on Multiple Destinations
+
+XCTasks supports a flexible syntax for specifying multiple destinations for your tests to execute on:
+
+```ruby
+XCTasks::TestTask.new(:spec) do |t|
+  t.workspace = 'LayerKit.xcworkspace'
+  t.runner = :xctool
+
+  t.subtask :functional do |s|
+    s.runner = :xcodebuild
+    s.scheme = 'Functional Tests'
+	
+	# Run on iOS Simulator, iPad, latest iOS
+    s.destination do |d|
+      d.platform = :iossimulator
+      d.name = 'iPad'
+      d.os = :latest
+    end
+	
+	# Specify a complete destination as a string
+    s.destination('platform=iOS Simulator,OS=7.1,name=iPhone Retina (4-inch)')
+	
+	# Quickly specify a physical device destination
+    s.destination platform: :ios, id: '437750527b43cff55a46f42ae86dbf870c7591b1'
+  end
+end
 ```
 
 ## Credits
