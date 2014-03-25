@@ -85,7 +85,7 @@ module XCTasks
       
       def to_s
         keys = [:platform, :name, :arch, :id, :os].reject { |k| self[k].nil? }
-        keys.map { |k| "#{key_name(k)}='#{self[k]}'" }.join(',')
+        keys.map { |k| "#{key_name(k)}='#{self[k].to_s.shellescape}'" }.join(',')
       end
       
       private
@@ -137,7 +137,7 @@ module XCTasks
       def destination(specifier = {})
         if specifier.kind_of?(String)
           raise ArgumentError, "Cannot configure a destination via a block when a complete String specifier is provided" if block_given?
-          @destinations << specifier
+          @destinations << specifier.shellescape
         elsif specifier.kind_of?(Hash)
           destination = Destination.new(specifier)
           yield destination if block_given?

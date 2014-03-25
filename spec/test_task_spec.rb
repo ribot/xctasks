@@ -178,8 +178,9 @@ describe XCTasks::TestTask do
       
       it "executes the appropriate commands" do
         subject.invoke
-        @commands.should == ["killall \"iPhone Simulator\"", 
-                             "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS Simulator',name='iPad',OS='latest' -destination platform=iOS Simulator,OS=7.1,name=iPhone Retina (4-inch) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test"]
+        @commands.should == [
+          "killall \"iPhone Simulator\"", 
+          "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS\\ Simulator',name='iPad',OS='latest' -destination platform\\=iOS\\ Simulator,OS\\=7.1,name\\=iPhone\\ Retina\\ \\(4-inch\\) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test"]
       end
     end
   end
