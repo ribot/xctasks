@@ -13,7 +13,11 @@ describe XCTasks::TestTask do
     FileUtils::Verbose.stub(:cp) do |src, dst|
       @commands << "cp #{src} #{dst}"
     end
+    
+    Rake.application = rake
   end
+  
+  let(:rake) { Rake::Application.new }
   
   describe 'simple task' do
     let!(:task) do
@@ -54,6 +58,7 @@ describe XCTasks::TestTask do
           subject.invoke
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
+                               "killall \"iPhone Simulator\"",
                                "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test  | xcpretty -c ; exit ${PIPESTATUS[0]}"]
         end
       end
@@ -65,6 +70,7 @@ describe XCTasks::TestTask do
           subject.invoke
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes", 
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "killall \"iPhone Simulator\"",
                                "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test  | xcpretty -c ; exit ${PIPESTATUS[0]}"]
         end
       end
@@ -106,8 +112,10 @@ describe XCTasks::TestTask do
         
         it "executes the appropriate commands" do
           subject.invoke
-          @commands.should == ["/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test -freshSimulator -destination platform='iOS Simulator',OS=7.0,name='iPhone Retina (4-inch)' ", 
-                               "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test -freshSimulator -destination platform='iOS Simulator',OS=7.1,name='iPhone Retina (4-inch)' "]
+          @commands.should == ["killall \"iPhone Simulator\"",
+                               "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.0 clean build test -freshSimulator -destination platform='iOS Simulator',OS=7.0,name='iPhone Retina (4-inch)'", 
+                               "killall \"iPhone Simulator\"",
+                               "/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator7.1 clean build test -freshSimulator -destination platform='iOS Simulator',OS=7.1,name='iPhone Retina (4-inch)'"]
         end
       end
       
@@ -116,7 +124,8 @@ describe XCTasks::TestTask do
         
         it "executes the appropriate commands" do
           subject.invoke
-          @commands.should == ["/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test "]
+          @commands.should == ["killall \"iPhone Simulator\"",
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test"]
         end
       end
     end
@@ -144,14 +153,65 @@ describe XCTasks::TestTask do
     end
   end
   
+  describe 'SDK Configuration' do
+    let!(:task) do
+      XCTasks::TestTask.new(:spec) do |t|
+        t.workspace = 'LayerKit.xcworkspace'
+        t.runner = :xctool
+    
+        t.subtask(unit: 'Unit Tests') do |s|
+          s.sdk = :macosx
+        end
+      end
+    end
+    
+    subject { Rake.application['spec:unit'] }
+    
+    it "executes the appropriate commands" do
+      subject.invoke
+      @commands.should == ["/usr/local/bin/xctool -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk macosx clean build test"]
+    end
+  end
+  
   describe 'validations' do
+    it "raises an exception when an invalid value is assigned to the sdk" do
+      expect do
+        XCTasks::TestTask.new do |t|
+          t.sdk = []
+        end
+      end.to raise_error(ArgumentError, "Can only assign sdk from a String or Symbol")
+    end
+    
     context "when an invalid runner is specified" do
-      it "raises an expection" do
+      it "raises an exception" do
         expect do
           XCTasks::TestTask.new do |t|
             t.runner = 'phantomjs'
           end
-        end.to raise_error(ArgumentError, "Must be :xcodebuild, :xctool or :xcpretty")
+        end.to raise_error(XCTasks::TestTask::ConfigurationError, "Must be :xcodebuild, :xctool or :xcpretty")
+      end
+    end
+    
+    context "when a workspace is not configured" do
+      it "raises an exception" do
+        expect do
+          XCTasks::TestTask.new do |t|
+            t.workspace = nil
+          end
+        end.to raise_error(XCTasks::TestTask::ConfigurationError, "A workspace must be configured")
+      end
+    end
+    
+    context "when an SDK of macosx and ios versions is specified" do
+      it "raises an exception" do
+        expect do
+          XCTasks::TestTask.new do |t|
+            t.workspace = 'Workspace.workspace'
+            t.sdk = :macosx
+            t.ios_versions = %w{7.0}            
+            t.subtasks = {unit: 'MyWorkspaceTests'}
+          end
+        end.to raise_error(XCTasks::TestTask::ConfigurationError, "Cannot specify iOS versions with an SDK of :macosx")
       end
     end
   end

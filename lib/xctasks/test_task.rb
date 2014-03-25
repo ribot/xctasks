@@ -3,8 +3,8 @@ require 'rake/tasklib'
 
 module XCTasks
   module Command
-    def run(command)
-      puts "Executing `#{command}`"
+    def run(command, echo = true)
+      puts "Executing `#{command}`" if echo
       system(command)
     end
     module_function :run
@@ -64,9 +64,11 @@ module XCTasks
       end
     end
     
-    class Config
-      SETTINGS = [:workspace, :schemes_dir, :runner, :xctool_path, 
-                  :xcodebuild_path, :settings, :destination, :actions]
+    class ConfigurationError < RuntimeError; end    
+    class Configuration
+      SETTINGS = [:workspace, :schemes_dir, :sdk, :runner, :xctool_path, 
+                  :xcodebuild_path, :settings, :destination, :actions,
+                  :scheme, :ios_versions]
       
       # Configures delegations to pass through configuration accessor when extended
       module Delegations
@@ -79,6 +81,7 @@ module XCTasks
       attr_accessor *SETTINGS
       
       def initialize
+        @sdk = :iphonesimulator
         @schemes_dir = nil
         @xctool_path = '/usr/local/bin/xctool'
         @xcodebuild_path = '/usr/bin/xcodebuild'
@@ -90,35 +93,44 @@ module XCTasks
       end
       
       def runner=(runner)
-        raise ArgumentError, "Must be :xcodebuild, :xctool or :xcpretty" unless %w{xctool xcodebuild xcpretty}.include?(runner.to_s)
+        raise ConfigurationError, "Must be :xcodebuild, :xctool or :xcpretty" unless %w{xctool xcodebuild xcpretty}.include?(runner.to_s)
         @runner = runner.to_sym
+      end
+      
+      def sdk=(sdk)
+        raise ArgumentError, "Can only assign sdk from a String or Symbol" unless sdk.kind_of?(String) || sdk.kind_of?(Symbol)
+        @sdk = sdk.to_sym
       end
       
       def destination
         yield @destination if block_given?
         @destination
       end
+      
+      def validate!
+        raise ConfigurationError, "Cannot specify iOS versions with an SDK of :macosx" if sdk == :macosx && ios_versions
+      end
     end
     
     class Subtask
-      extend Config::Delegations
+      extend Configuration::Delegations
       include ::Rake::DSL if defined?(::Rake::DSL)
       
-      attr_reader :name
-      attr_accessor :scheme, :ios_versions
+      attr_reader :name, :config
       
       def initialize(name_options, config)
-        self.name = name_options.kind_of?(Hash) ? name_options.keys.first : name_options.to_s
-        @scheme = name_options.values.first if name_options.kind_of?(Hash)
         @config = config.dup
-        @ios_versions = []
+        self.name = name_options.kind_of?(Hash) ? name_options.keys.first : name_options.to_s
+        self.scheme = name_options.values.first if name_options.kind_of?(Hash)        
       end
       
       def name=(name)
         @name = name.to_s
-      end            
+      end
       
       def define_rake_tasks
+        @config.validate!
+        
         if namespaced?
           namespace(name) do
             ios_versions.each do |ios_version|
@@ -142,22 +154,23 @@ module XCTasks
       private
       
       def namespaced?
-        ios_versions.any?
-      end
+        ios_versions && ios_versions.any?
+      end            
     
-      def run_tests(options = {})
-        system(%q{killall "iPhone Simulator"})
+      def run_tests(options = {})        
         ios_version = options[:ios_version]
+        XCTasks::Command.run(%q{killall "iPhone Simulator"}, false) if sdk == :iphonesimulator
       
         settings_arg = " " << settings.map { |k,v| "#{k}=#{v}"}.join(' ')
         destination_arg = " -destination " << destination.to_arg(ios_version) if destination && ios_version
         actions_arg = actions.join(' ')
         success = if xctool?
-          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk iphonesimulator#{ios_version} #{actions_arg} -freshSimulator#{destination_arg}#{settings_arg}")
+          actions_arg << " -freshSimulator" if ios_version
+          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg}".strip)
         elsif xcodebuild?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk iphonesimulator#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg}")
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg}".strip)
         elsif xcpretty?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk iphonesimulator#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg} | xcpretty -c ; exit ${PIPESTATUS[0]}")
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version} #{actions_arg}#{destination_arg}#{settings_arg} | xcpretty -c ; exit ${PIPESTATUS[0]}".strip)
         end
         
         XCTasks::TestReport.instance.add_result(self, options, success)
@@ -179,18 +192,18 @@ module XCTasks
     include ::Rake::DSL if defined?(::Rake::DSL)
     
     attr_reader :namespace_name, :prepare_dependency, :config, :subtasks
-    extend Config::Delegations
+    extend Configuration::Delegations
     
     def initialize(namespace_name = :test)
       @namespace_name = namespace_name
-      @config = Config.new
+      @config = Configuration.new
       @subtasks = []
       @namespace_name = namespace_name.kind_of?(Hash) ? namespace_name.keys.first : namespace_name
       @prepare_dependency = namespace_name.kind_of?(Hash) ? namespace_name.values.first : nil      
       
       yield self if block_given?
-      raise "A workspace must be configured" unless workspace
-      raise "At least one subtask must be configured" if subtasks.empty?
+      raise ConfigurationError, "A workspace must be configured" unless workspace
+      raise ConfigurationError, "At least one subtask must be configured" if subtasks.empty?
       define_rake_tasks
     end
     
@@ -218,20 +231,6 @@ module XCTasks
         end
         
         subtasks.each { |subtask| subtask.define_rake_tasks }
-        # 
-        # # Iterate across the schemes and define a task for each version of iOS and an aggregate task
-        # # schemes.each do |scheme_namespace, scheme_name|
-        # #   namespace scheme_namespace do
-        # #     ios_versions.each do |ios_version|
-        # #       desc "Run #{scheme_namespace} tests against iOS Simulator #{ios_version} SDK"
-        # #       task ios_version => :prepare do
-        # #         test_scheme(scheme_name, namespace: scheme_namespace, ios_version: ios_version)
-        # #       end
-        # #     end
-        # #   end
-        #   
-        #   desc "Run #{scheme_namespace} tests against iOS Simulator #{ios_versions.join(', ')}"
-        #   task scheme_namespace => ios_versions.map { |ios_version| "#{scheme_namespace}:#{ios_version}" }
       end
       
       subtask_names = subtasks.map { |subtask| subtask.name }
