@@ -1,5 +1,6 @@
 require 'rake'
 require 'rake/tasklib'
+require 'forwardable'
 
 module XCTasks
   module Command
