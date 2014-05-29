@@ -85,8 +85,8 @@ module XCTasks
       end            
       
       def to_s
-        keys = [:platform, :name, :arch, :id, :os].reject { |k| self[k].nil? }
-        keys.map { |k| "#{key_name(k)}='#{self[k].to_s.shellescape}'" }.join(',')
+        keys = [:platform, :name, :arch, :id, :os].reject { |k| self[k].nil? }        
+        keys.map { |k| "#{key_name(k)}='#{self[k].to_s}'" }.join(',')
       end
       
       private

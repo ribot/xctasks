@@ -188,7 +188,7 @@ describe XCTasks::TestTask do
           s.scheme = 'Functional Tests'
           s.destination do |d|
             d.platform = :iossimulator
-            d.name = 'iPad'
+            d.name = 'iPad Retina'
             d.os = :latest
           end
           s.destination('platform=iOS Simulator,OS=7.1,name=iPhone Retina (4-inch)')
@@ -218,7 +218,7 @@ describe XCTasks::TestTask do
         subject.invoke
         @commands.should == [
           "killall \"iPhone Simulator\"", 
-          "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS\\ Simulator',name='iPad',OS='latest' -destination platform\\=iOS\\ Simulator,OS\\=7.1,name\\=iPhone\\ Retina\\ \\(4-inch\\) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test"]
+          "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS Simulator',name='iPad Retina',OS='latest' -destination platform\\=iOS\\ Simulator,OS\\=7.1,name\\=iPhone\\ Retina\\ \\(4-inch\\) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test"]
       end
     end
   end
