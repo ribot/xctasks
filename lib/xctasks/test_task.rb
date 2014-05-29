@@ -99,7 +99,7 @@ module XCTasks
     class Configuration
       SETTINGS = [:workspace, :schemes_dir, :sdk, :runner, :xctool_path, 
                   :xcodebuild_path, :settings, :destinations, :actions,
-                  :scheme, :ios_versions]
+                  :scheme, :ios_versions, :output_log]
       HELPERS = [:destination, :xctool?, :xcpretty?, :xcodebuild?]
       
       # Configures delegations to pass through configuration accessor when extended
@@ -126,8 +126,9 @@ module XCTasks
       end
       
       def runner=(runner)
-        raise ConfigurationError, "Must be :xcodebuild, :xctool or :xcpretty" unless %w{xctool xcodebuild xcpretty}.include?(runner.to_s)
-        @runner = runner.to_sym
+        runner_bin = runner.to_s.split(' ')[0]
+        raise ConfigurationError, "Must be :xcodebuild, :xctool or :xcpretty" unless %w{xctool xcodebuild xcpretty}.include?(runner_bin)
+        @runner = runner
       end
       
       def sdk=(sdk)
@@ -153,15 +154,15 @@ module XCTasks
       end
       
       def xctool?
-        runner == :xctool
+        runner =~ /^xctool/
       end
 
       def xcodebuild?
-        runner == :xcodebuild
+        runner =~ /^xcodebuild/
       end
     
       def xcpretty?
-        runner == :xcpretty
+        runner =~ /^xcpretty/
       end
       
       # Deep copy any nested structures
@@ -221,14 +222,16 @@ module XCTasks
       def run_tests(options = {})        
         ios_version = options[:ios_version]
         XCTasks::Command.run(%q{killall "iPhone Simulator"}, false) if sdk == :iphonesimulator
-      
+        
+        output_log_command = output_log ? " | tee -a #{output_log} " : ' '
         success = if xctool?
           actions_arg << " -freshSimulator" if ios_version
-          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}".strip)
+          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}".strip)
         elsif xcodebuild?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}".strip)
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}".strip)
         elsif xcpretty?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg} | xcpretty -c ; exit ${PIPESTATUS[0]}".strip)
+          xcpretty_bin = runner.is_a?(String) ? runner : "xcpretty -c"
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}| #{xcpretty_bin} ; exit ${PIPESTATUS[0]}".strip)
         end
         
         XCTasks::TestReport.instance.add_result(self, options, success)
@@ -290,6 +293,7 @@ module XCTasks
     def define_rake_tasks
       namespace self.namespace_name do
         task (prepare_dependency ? { prepare: prepare_dependency} : :prepare ) do
+          File.truncate(output_log, 0) if output_log && File.exists?(output_log)
           if schemes_dir
             FileUtils::Verbose.mkdir_p "#{workspace}/xcshareddata/xcschemes"
             FileUtils::Verbose.cp Dir.glob("#{schemes_dir}/*.xcscheme"), "#{workspace}/xcshareddata/xcschemes"

@@ -77,6 +77,44 @@ describe XCTasks::TestTask do
     end
   end
   
+  describe 'task with log' do
+    let!(:task) do
+      XCTasks::TestTask.new do |t|
+        t.workspace = 'LayerKit.xcworkspace'    
+        t.schemes_dir = 'Tests/Schemes'    
+        t.runner = 'xcpretty -s'
+        t.output_log = 'output.log'
+        t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+      end
+    end
+    
+    describe 'tasks' do
+      describe 'spec:unit' do
+        subject { Rake.application['test:unit'] }
+        
+        it "executes the appropriate commands" do
+          subject.invoke
+          @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "killall \"iPhone Simulator\"", 
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test | tee -a output.log | xcpretty -s ; exit ${PIPESTATUS[0]}"]
+        end
+      end
+      
+      describe 'spec:functional' do
+        subject { Rake.application['test:functional'] }
+        
+        it "executes the appropriate commands" do
+          subject.invoke
+          @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes", 
+                               "killall \"iPhone Simulator\"",
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test | tee -a output.log | xcpretty -s ; exit ${PIPESTATUS[0]}"]
+        end
+      end
+    end
+  end
+  
   describe 'advanced task' do
     let!(:task) do
       XCTasks::TestTask.new do |t|
