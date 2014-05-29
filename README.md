@@ -19,7 +19,8 @@ require 'xctasks/test_task'
 XCTasks::TestTask.new(test: 'server:autostart') do |t|
   t.workspace = 'LayerKit.xcworkspace'  
   t.schemes_dir = 'Tests/Schemes' # Location where you store your shared schemes, will copy into workspace
-  t.runner = :xctool # or :xcodebuild/:xcpretty
+  t.runner = :xctool # or :xcodebuild/:xcpretty. Can also pass options as string, i.e. 'xcpretty -s'
+  t.output_log = 'output.log' # Save the build log to a file. Export as Jenkins build artifact for CI build auditing
   
   t.subtask(unit: 'LayerKit Tests') do |s|
     s.ios_versions = %w{7.0 7.1}
