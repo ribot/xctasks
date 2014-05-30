@@ -1,5 +1,9 @@
 # XCTasks Changelog
 
+## v0.2.1
+
+* Restore terminal output color to normal after reporting test results.
+
 ## v0.2.0
 
 * Further refinements to shell escaping [@tayhalla]
