@@ -44,10 +44,10 @@ module XCTasks
     def report
       @subtask_results.each do |subtask, options_results|
         options_results.each do |options, success|
-          puts "\033[0;31m!! #{subtask.name} tests failed with options #{options}" unless success
+          puts "\033[0;31m!! #{subtask.name} tests failed with options #{options}\033[0m" unless success
         end
       end
-      puts "\033[0;32m** All tests executed successfully" if success?
+      puts "\033[0;32m** All tests executed successfully\033[0m" if success?
     end
   end
   
