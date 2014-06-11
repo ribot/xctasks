@@ -293,6 +293,8 @@ module XCTasks
     def define_rake_tasks
       namespace self.namespace_name do
         task (prepare_dependency ? { prepare: prepare_dependency} : :prepare ) do
+          fail "No such workspace: #{workspace}" unless File.exists?(workspace)
+          fail "Invalid schemes directory: #{schemes_dir}" unless schemes_dir.nil? || File.exists?(schemes_dir)
           File.truncate(output_log, 0) if output_log && File.exists?(output_log)
           if schemes_dir
             FileUtils::Verbose.mkdir_p "#{workspace}/xcshareddata/xcschemes"

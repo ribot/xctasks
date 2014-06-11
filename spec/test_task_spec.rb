@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'xctasks/test_task'
+require 'tempfile'
 
 describe XCTasks::TestTask do
   before(:each) do
@@ -15,9 +16,64 @@ describe XCTasks::TestTask do
     end
     
     Rake.application = rake
+    
+    Dir.mktmpdir.tap do |path|
+      FileUtils.touch(path + '/LayerKit.xcworkspace')
+      FileUtils.mkdir_p(path + '/Tests/Schemes')
+      Dir.chdir(path)
+    end
   end
   
   let(:rake) { Rake::Application.new }
+  
+  describe "test:prepare" do
+    subject { Rake.application['test:prepare'] }
+    
+    context "when the given workspace does not exist" do
+      let!(:task) do
+        XCTasks::TestTask.new do |t|
+          t.workspace = 'Invalid.xcworkspace'    
+          t.schemes_dir = 'Tests/Schemes'    
+          t.runner = :xcpretty
+          t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+        end
+      end
+      
+      it "fails" do
+        expect { subject.invoke }.to raise_error(RuntimeError, "No such workspace: Invalid.xcworkspace")
+      end
+    end
+    
+    context "when the given schemes_dir is nil" do
+      let!(:task) do
+        XCTasks::TestTask.new do |t|
+          t.workspace = 'LayerKit.xcworkspace'    
+          t.schemes_dir = nil
+          t.runner = :xcpretty
+          t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+        end
+      end
+      
+      it "succeeds" do
+        expect { subject.invoke }.not_to raise_error
+      end
+    end
+    
+    context "when the given schemes_dir does not exist" do
+      let!(:task) do
+        XCTasks::TestTask.new do |t|
+          t.workspace = 'LayerKit.xcworkspace'    
+          t.schemes_dir = 'this/path/is/invalid'
+          t.runner = :xcpretty
+          t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+        end
+      end
+      
+      it "fails" do
+        expect { subject.invoke }.to raise_error(RuntimeError, "Invalid schemes directory: this/path/is/invalid")
+      end
+    end
+  end
   
   describe 'simple task' do
     let!(:task) do
