@@ -1,5 +1,9 @@
 # XCTasks Changelog
 
+## v0.2.2
+
+* Added pre-flight validation of workspace and schemes dir
+
 ## v0.2.1
 
 * Restore terminal output color to normal after reporting test results.
