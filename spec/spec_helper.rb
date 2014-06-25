@@ -3,8 +3,7 @@ Bundler.setup
 
 require 'xctasks'
 
-require 'debugger'
-Debugger.start
+require 'byebug'
 
 RSpec.configure do |config|
   # some (optional) config here
