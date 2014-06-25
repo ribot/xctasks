@@ -1,5 +1,9 @@
 # XCTasks Changelog
 
+## v0.3.0
+
+* Added support for writing environment variables into schemes.
+
 ## v0.2.2
 
 * Added pre-flight validation of workspace and schemes dir

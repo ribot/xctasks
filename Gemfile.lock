@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    xctasks (0.2.2)
+    xctasks (0.3.0)
       nokogiri (~> 1.6.2.1)
       rake (>= 10.0.0)
 
