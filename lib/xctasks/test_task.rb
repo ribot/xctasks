@@ -100,7 +100,7 @@ module XCTasks
     class Configuration
       SETTINGS = [:workspace, :schemes_dir, :sdk, :runner, :xctool_path,
                   :xcodebuild_path, :settings, :destinations, :actions,
-                  :scheme, :ios_versions, :output_log, :env]
+                  :scheme, :ios_versions, :output_log, :env, :redirect_stderr]
       HELPERS = [:destination, :xctool?, :xcpretty?, :xcodebuild?]
 
       # Configures delegations to pass through configuration accessor when extended
@@ -125,6 +125,7 @@ module XCTasks
         @destinations = []
         @actions = %w{clean build test}
         @env = {}
+        @redirect_stderr = false
       end
 
       def runner=(runner)
@@ -136,6 +137,14 @@ module XCTasks
       def sdk=(sdk)
         raise ArgumentError, "Can only assign sdk from a String or Symbol" unless sdk.kind_of?(String) || sdk.kind_of?(Symbol)
         @sdk = sdk.to_sym
+      end
+
+      def redirect_stderr=(redirect_stderr)
+        if redirect_stderr == true
+          @redirect_stderr = '/dev/null'
+        else
+          @redirect_stderr = redirect_stderr
+        end
       end
 
       def destination(specifier = {})
@@ -226,18 +235,19 @@ module XCTasks
       end
 
       def run_tests(options = {})
-        ios_version = options[:ios_version]
+        ios_version = options[:ios_version]      
         XCTasks::Command.run(%q{killall "iPhone Simulator"}, false) if sdk == :iphonesimulator
 
-        output_log_command = output_log ? " | tee -a #{output_log} " : ' '
+        output_log_command = output_log ? "| tee -a #{output_log}" : nil
+        redirect_suffix = redirect_stderr ? "2> #{redirect_stderr}" : nil
         success = if xctool?
           actions_arg << " -freshSimulator" if ios_version
-          Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}".strip)
+          Command.run(["#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
         elsif xcodebuild?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}2>/dev/null".strip)
+          Command.run(["#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
         elsif xcpretty?
           xcpretty_bin = runner.is_a?(String) ? runner : "xcpretty -c"
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}2>/dev/null | #{xcpretty_bin} ; exit ${PIPESTATUS[0]}".strip)
+          Command.run(["#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command, "| #{xcpretty_bin} ; exit ${PIPESTATUS[0]}"].grep(String).join(' '))
         end
 
         XCTasks::TestReport.instance.add_result(self, options, success)
@@ -245,19 +255,19 @@ module XCTasks
 
       def settings_arg
         if settings.any?
-          " " << settings.map { |k,v| "#{k}=#{v}"}.join(' ')
+          settings.map { |k,v| "#{k}=#{v}"}.join(' ')
         else
           nil
         end
       end
 
       def actions_arg
-        " " << actions.join(' ')
+        actions.join(' ')
       end
 
       def destination_arg
         if destinations.any?
-          " " << destinations.map { |d| "-destination #{d}" }.join(' ')
+          destinations.map { |d| "-destination #{d}" }.join(' ')
         else
           nil
         end
