@@ -115,7 +115,7 @@ describe XCTasks::TestTask do
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test | xcpretty -c ; exit ${PIPESTATUS[0]}"]
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test 2>/dev/null | xcpretty -c ; exit ${PIPESTATUS[0]}"]
         end
       end
 
@@ -127,7 +127,7 @@ describe XCTasks::TestTask do
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test | xcpretty -c ; exit ${PIPESTATUS[0]}"]
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test 2>/dev/null | xcpretty -c ; exit ${PIPESTATUS[0]}"]
         end
       end
     end
@@ -153,7 +153,7 @@ describe XCTasks::TestTask do
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test | tee -a output.log | xcpretty -s ; exit ${PIPESTATUS[0]}"]
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test | tee -a output.log 2>/dev/null | xcpretty -s ; exit ${PIPESTATUS[0]}"]
         end
       end
 
@@ -165,7 +165,7 @@ describe XCTasks::TestTask do
           @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
                                "killall \"iPhone Simulator\"",
-                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test | tee -a output.log | xcpretty -s ; exit ${PIPESTATUS[0]}"]
+                               "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test | tee -a output.log 2>/dev/null | xcpretty -s ; exit ${PIPESTATUS[0]}"]
         end
       end
     end
@@ -247,7 +247,7 @@ describe XCTasks::TestTask do
           subject.invoke
           @commands.should == [
             "killall \"iPhone Simulator\"",
-            "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test"
+            "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator clean build test 2>/dev/null"
           ]
         end
       end
@@ -299,7 +299,7 @@ describe XCTasks::TestTask do
         subject.invoke
         @commands.should == [
           "killall \"iPhone Simulator\"",
-          "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS Simulator',name='iPad Retina',OS='latest' -destination platform\\=iOS\\ Simulator,OS\\=7.1,name\\=iPhone\\ Retina\\ \\(4-inch\\) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test"]
+          "/usr/bin/xcodebuild -workspace LayerKit.xcworkspace -scheme 'Functional Tests' -sdk iphonesimulator -destination platform='iOS Simulator',name='iPad Retina',OS='latest' -destination platform\\=iOS\\ Simulator,OS\\=7.1,name\\=iPhone\\ Retina\\ \\(4-inch\\) -destination platform='iOS',id='437750527b43cff55a46f42ae86dbf870c7591b1' clean build test 2>/dev/null"]
       end
     end
   end

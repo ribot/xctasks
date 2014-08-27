@@ -234,10 +234,10 @@ module XCTasks
           actions_arg << " -freshSimulator" if ios_version
           Command.run("#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}".strip)
         elsif xcodebuild?
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command} 2>/dev/null".strip)
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}2>/dev/null".strip)
         elsif xcpretty?
           xcpretty_bin = runner.is_a?(String) ? runner : "xcpretty -c"
-          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command} 2>/dev/null | #{xcpretty_bin} ; exit ${PIPESTATUS[0]}".strip)
+          Command.run("#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}#{destination_arg}#{actions_arg}#{settings_arg}#{output_log_command}2>/dev/null | #{xcpretty_bin} ; exit ${PIPESTATUS[0]}".strip)
         end
 
         XCTasks::TestReport.instance.add_result(self, options, success)
