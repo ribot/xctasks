@@ -1,5 +1,9 @@
 # XCTasks Changelog
 
+## v0.4.1
+
+* Reworked output redirection into an optional feature.
+
 ## v0.4.0
 
 * Added redirection of stderr to /dev/null
