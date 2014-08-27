@@ -1,5 +1,10 @@
 # XCTasks Changelog
 
+## v0.4.0
+
+* Added redirection of stderr to /dev/null
+* Updated dependency on Nokogiri to 1.6
+
 ## v0.3.0
 
 * Added support for writing environment variables into schemes.
