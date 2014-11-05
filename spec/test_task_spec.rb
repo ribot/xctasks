@@ -19,6 +19,7 @@ describe XCTasks::TestTask do
 
     Dir.mktmpdir.tap do |path|
       FileUtils.mkdir_p(path + '/LayerKit.xcworkspace/xcshareddata/xcschemes')
+      FileUtils.mkdir_p(path + '/LayerKit.xcodeproj/xcshareddata/xcschemes')
       FileUtils.mkdir_p(path + '/Tests/Schemes')
       Dir.chdir(path)
     end
@@ -41,6 +42,21 @@ describe XCTasks::TestTask do
 
       it "fails" do
         expect { subject.invoke }.to raise_error(RuntimeError, "No such workspace: Invalid.xcworkspace")
+      end
+    end
+
+    context "when the given project does not exist" do
+      let!(:task) do
+        XCTasks::TestTask.new do |t|
+          t.project = 'Invalid.xcodeproj'
+          t.schemes_dir = 'Tests/Schemes'
+          t.runner = :xcpretty
+          t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+        end
+      end
+
+      it "fails" do
+        expect { subject.invoke }.to raise_error(RuntimeError, "No such project: Invalid.xcodeproj")
       end
     end
 
@@ -75,7 +91,37 @@ describe XCTasks::TestTask do
     end
   end
 
-  describe 'simple task' do
+  describe 'simple task with a project' do
+    let!(:task) do
+      XCTasks::TestTask.new do |t|
+        t.project = 'LayerKit.xcodeproj'
+        t.schemes_dir = 'Tests/Schemes'
+        t.runner = :xcpretty
+        t.redirect_stderr = true
+        t.subtasks = { unit: 'Unit Tests' }
+      end
+    end
+
+    it "configures the project" do
+      task.project.should == 'LayerKit.xcodeproj'
+    end
+
+    describe 'tasks' do
+      describe 'spec:unit' do
+        subject { Rake.application['test:unit'] }
+
+        it "executes the appropriate commands" do
+          subject.invoke
+          @commands.should == ["mkdir -p LayerKit.xcodeproj/xcshareddata/xcschemes",
+                               "cp [] LayerKit.xcodeproj/xcshareddata/xcschemes",
+                               "killall \"iPhone Simulator\"",
+                               "/usr/bin/xcodebuild -project LayerKit.xcodeproj -scheme 'Unit Tests' -sdk iphonesimulator clean build test 2> /dev/null | xcpretty -c ; exit ${PIPESTATUS[0]}"]
+        end
+      end
+    end
+  end
+
+  describe 'simple task with a workspace' do
     let!(:task) do
       XCTasks::TestTask.new do |t|
         t.workspace = 'LayerKit.xcworkspace'
@@ -190,6 +236,31 @@ describe XCTasks::TestTask do
       FileUtils.cp File.dirname(__FILE__) + '/Unit Tests.xcscheme', "LayerKit.xcworkspace/xcshareddata/xcschemes/"
       subject.invoke
       doc = Nokogiri::XML File.read("LayerKit.xcworkspace/xcshareddata/xcschemes/Unit Tests.xcscheme")
+      node = doc.at('TestAction/EnvironmentVariables/EnvironmentVariable')
+      expect(node).not_to be_nil
+      attributes = node.attributes.inject({}) { |hash, pair| hash[pair[0]] = pair[1].to_s; hash }
+      attributes.should == {"key"=>"LAYER_TEST_HOST", "value"=>"10.66.0.35", "isEnabled"=>"YES"}
+    end
+  end
+
+  describe 'task with a project with environment variables' do
+    let!(:task) do
+      XCTasks::TestTask.new do |t|
+        t.project = 'LayerKit.xcodeproj'
+        t.schemes_dir = 'Tests/Schemes'
+        t.runner = 'xcpretty -s'
+        t.output_log = 'output.log'
+        t.env["LAYER_TEST_HOST"] = "10.66.0.35"
+        t.subtasks = { unit: 'Unit Tests' }
+      end
+    end
+
+    subject { Rake.application['test:unit'] }
+
+    it "writes the environment variables into the scheme" do
+      FileUtils.cp File.dirname(__FILE__) + '/Unit Tests.xcscheme', "LayerKit.xcodeproj/xcshareddata/xcschemes/"
+      subject.invoke
+      doc = Nokogiri::XML File.read("LayerKit.xcodeproj/xcshareddata/xcschemes/Unit Tests.xcscheme")
       node = doc.at('TestAction/EnvironmentVariables/EnvironmentVariable')
       expect(node).not_to be_nil
       attributes = node.attributes.inject({}) { |hash, pair| hash[pair[0]] = pair[1].to_s; hash }
@@ -345,13 +416,14 @@ describe XCTasks::TestTask do
       end
     end
 
-    context "when a workspace is not configured" do
+    context "when a workspace or project is not configured" do
       it "raises an exception" do
         expect do
           XCTasks::TestTask.new do |t|
             t.workspace = nil
+            t.project = nil
           end
-        end.to raise_error(XCTasks::TestTask::ConfigurationError, "A workspace must be configured")
+        end.to raise_error(XCTasks::TestTask::ConfigurationError, "A workspace or project must be configured")
       end
     end
 

@@ -100,7 +100,8 @@ module XCTasks
     class Configuration
       SETTINGS = [:workspace, :schemes_dir, :sdk, :runner, :xctool_path,
                   :xcodebuild_path, :settings, :destinations, :actions,
-                  :scheme, :ios_versions, :output_log, :env, :redirect_stderr]
+                  :scheme, :ios_versions, :output_log, :env, :redirect_stderr,
+                  :project]
       HELPERS = [:destination, :xctool?, :xcpretty?, :xcodebuild?]
 
       # Configures delegations to pass through configuration accessor when extended
@@ -235,19 +236,21 @@ module XCTasks
       end
 
       def run_tests(options = {})
-        ios_version = options[:ios_version]      
+        ios_version = options[:ios_version]
         XCTasks::Command.run(%q{killall "iPhone Simulator"}, false) if sdk == :iphonesimulator
+
+        target = workspace ? "-workspace #{workspace}" : "-project #{project}"
 
         output_log_command = output_log ? "| tee -a #{output_log}" : nil
         redirect_suffix = redirect_stderr ? "2> #{redirect_stderr}" : nil
         success = if xctool?
           actions_arg << " -freshSimulator" if ios_version
-          Command.run(["#{xctool_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
+          Command.run(["#{xctool_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
         elsif xcodebuild?
-          Command.run(["#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
+          Command.run(["#{xcodebuild_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
         elsif xcpretty?
           xcpretty_bin = runner.is_a?(String) ? runner : "xcpretty -c"
-          Command.run(["#{xcodebuild_path} -workspace #{workspace} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command, "| #{xcpretty_bin} ; exit ${PIPESTATUS[0]}"].grep(String).join(' '))
+          Command.run(["#{xcodebuild_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command, "| #{xcpretty_bin} ; exit ${PIPESTATUS[0]}"].grep(String).join(' '))
         end
 
         XCTasks::TestReport.instance.add_result(self, options, success)
@@ -275,7 +278,7 @@ module XCTasks
 
       def write_environment_variables_to_scheme
         if env.any?
-          path = "#{workspace}/xcshareddata/xcschemes/#{scheme}.xcscheme"
+          path = "#{workspace || project}/xcshareddata/xcschemes/#{scheme}.xcscheme"
           doc = Nokogiri::XML(File.read(path))
           testable_node = doc.at('TestAction')
           env_variables_node = Nokogiri::XML::Node.new "EnvironmentVariables", doc
@@ -305,7 +308,7 @@ module XCTasks
       @prepare_dependency = namespace_name.kind_of?(Hash) ? namespace_name.values.first : nil
 
       yield self if block_given?
-      raise ConfigurationError, "A workspace must be configured" unless workspace
+      raise ConfigurationError, "A workspace or project must be configured" unless workspace || project
       raise ConfigurationError, "At least one subtask must be configured" if subtasks.empty?
       define_rake_tasks
     end
@@ -327,12 +330,17 @@ module XCTasks
     def define_rake_tasks
       namespace self.namespace_name do
         task (prepare_dependency ? { prepare: prepare_dependency} : :prepare ) do
-          fail "No such workspace: #{workspace}" unless File.exists?(workspace)
+          if workspace
+            fail "No such workspace: #{workspace}" unless File.exists?(workspace)
+          else
+            fail "No such project: #{project}" unless File.exists?(project)
+          end
+
           fail "Invalid schemes directory: #{schemes_dir}" unless schemes_dir.nil? || File.exists?(schemes_dir)
           File.truncate(output_log, 0) if output_log && File.exists?(output_log)
           if schemes_dir
-            FileUtils::Verbose.mkdir_p "#{workspace}/xcshareddata/xcschemes"
-            FileUtils::Verbose.cp Dir.glob("#{schemes_dir}/*.xcscheme"), "#{workspace}/xcshareddata/xcschemes"
+            FileUtils::Verbose.mkdir_p "#{workspace || project}/xcshareddata/xcschemes"
+            FileUtils::Verbose.cp Dir.glob("#{schemes_dir}/*.xcscheme"), "#{workspace || project}/xcshareddata/xcschemes"
           end
           subtasks.each { |subtask| subtask.prepare }
         end
