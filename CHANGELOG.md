@@ -1,5 +1,9 @@
 # XCTasks Changelog
 
+## v0.5.0
+
+* Added support for working with projects as well as workspaces. Compliments of [kylef](https://github.com/kylef).
+
 ## v0.4.1
 
 * Reworked output redirection into an optional feature.
