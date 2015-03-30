@@ -245,12 +245,11 @@ module XCTasks
         redirect_suffix = redirect_stderr ? "2> #{redirect_stderr}" : nil
         success = if xctool?
           actions_arg << " -freshSimulator" if ios_version
-          Command.run(["#{xctool_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
+          Command.run(["#{runner_arg} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
         elsif xcodebuild?
-          Command.run(["#{xcodebuild_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
+          Command.run(["#{runner_arg} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command].grep(String).join(' '))
         elsif xcpretty?
-          xcpretty_bin = runner.is_a?(String) ? runner : "xcpretty -c"
-          Command.run(["#{xcodebuild_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command, "| #{xcpretty_bin} ; exit ${PIPESTATUS[0]}"].grep(String).join(' '))
+          Command.run(["#{xcodebuild_path} #{target} -scheme '#{scheme}' -sdk #{sdk}#{ios_version}", destination_arg, actions_arg, settings_arg, redirect_suffix, output_log_command, "| #{runner_arg} ; exit ${PIPESTATUS[0]}"].grep(String).join(' '))
         end
 
         XCTasks::TestReport.instance.add_result(self, options, success)
@@ -273,6 +272,26 @@ module XCTasks
           destinations.map { |d| "-destination #{d}" }.join(' ')
         else
           nil
+        end
+      end
+
+      def runner_arg
+        if runner.is_a?(String)
+          if xctool?
+            runner.sub("xctool", xctool_path)
+          elsif xcodebuild?
+            runner.sub("xcodebuild", xcodebuild_path)
+          elsif xcpretty?
+            runner
+          end
+        else
+          if xctool?
+            xctool_path
+          elsif xcodebuild?
+            xcodebuild_path
+          elsif xcpretty?
+            "xcpretty -c"
+          end
         end
       end
 

@@ -268,6 +268,56 @@ describe XCTasks::TestTask do
     end
   end
 
+  describe 'simple xctool task with a reporter' do
+    let!(:task) do
+      XCTasks::TestTask.new do |t|
+        t.workspace = 'LayerKit.xcworkspace'
+        t.schemes_dir = 'Tests/Schemes'
+        t.runner = 'xctool -reporter junit'
+        t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+      end
+    end
+
+    describe 'tasks' do
+      describe 'spec:unit' do
+        subject { Rake.application['test:unit'] }
+
+        it "configures the runner" do
+          subject.invoke
+          @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
+                               "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
+                               "killall \"iPhone Simulator\"",
+                               "/usr/local/bin/xctool -reporter junit -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test"]
+        end
+      end
+    end
+  end
+
+  describe 'simple xctool task with multiple reporters' do
+    let!(:task) do
+      XCTasks::TestTask.new do |t|
+        t.workspace = 'LayerKit.xcworkspace'
+        t.schemes_dir = 'Tests/Schemes'
+        t.runner = 'xctool -reporter junit -report pretty:pretty.txt'
+        t.subtasks = { unit: 'Unit Tests', functional: 'Functional Tests' }
+      end
+    end
+
+    describe 'tasks' do
+      describe 'spec:unit' do
+        subject { Rake.application['test:unit'] }
+
+        it "configures the runner" do
+          subject.invoke
+          @commands.should == ["mkdir -p LayerKit.xcworkspace/xcshareddata/xcschemes",
+                               "cp [] LayerKit.xcworkspace/xcshareddata/xcschemes",
+                               "killall \"iPhone Simulator\"",
+                               "/usr/local/bin/xctool -reporter junit -report pretty:pretty.txt -workspace LayerKit.xcworkspace -scheme 'Unit Tests' -sdk iphonesimulator clean build test"]
+        end
+      end
+    end
+  end
+
   describe 'advanced task' do
     let!(:task) do
       XCTasks::TestTask.new do |t|
